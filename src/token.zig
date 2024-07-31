@@ -1,8 +1,15 @@
 const std = @import("std");
 
-const Token = struct {
-    type: TokenType,
+pub const Token = struct {
+    token_type: TokenType,
     literal: []const u8,
+
+    pub fn init(token_type: TokenType, literal: []const u8) Token {
+        return Token{
+            .token_type = token_type,
+            .literal = literal,
+        };
+    }
 };
 
 pub const TokenType = enum {
