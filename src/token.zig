@@ -48,4 +48,11 @@ pub const TokenType = enum {
 pub const Token = struct {
     type: TokenType,
     literal: []const u8,
+
+    pub fn init(token_type: TokenType, literal: []const u8) Token {
+        return Token{
+            .type = token_type,
+            .literal = literal,
+        };
+    }
 };
