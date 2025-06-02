@@ -11,6 +11,12 @@ pub const TokenType = enum {
     // 演算子
     ASSIGN,
     PLUS,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
+    LT,
+    GT,
 
     // デリミタ
     COMMA,
@@ -33,6 +39,12 @@ pub const TokenType = enum {
             .INT => "INT",
             .ASSIGN => "=",
             .PLUS => "+",
+            .MINUS => "-",
+            .BANG => "!",
+            .ASTERISK => "*",
+            .SLASH => "/",
+            .LT => "<",
+            .GT => ">",
             .COMMA => ",",
             .SEMICOLON => ";",
             .LPAREN => "(",

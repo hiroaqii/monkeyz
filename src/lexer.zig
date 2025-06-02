@@ -61,6 +61,34 @@ pub const Lexer = struct {
                 self.readChar();
                 return Token.init(TokenType.ASSIGN, "=");
             },
+            '+' => {
+                self.readChar();
+                return Token.init(TokenType.PLUS, "+");
+            },
+            '-' => {
+                self.readChar();
+                return Token.init(TokenType.MINUS, "-");
+            },
+            '!' => {
+                self.readChar();
+                return Token.init(TokenType.BANG, "!");
+            },
+            '/' => {
+                self.readChar();
+                return Token.init(TokenType.SLASH, "/");
+            },
+            '*' => {
+                self.readChar();
+                return Token.init(TokenType.ASTERISK, "*");
+            },
+            '<' => {
+                self.readChar();
+                return Token.init(TokenType.LT, "<");
+            },
+            '>' => {
+                self.readChar();
+                return Token.init(TokenType.GT, ">");
+            },
             ';' => {
                 self.readChar();
                 return Token.init(TokenType.SEMICOLON, ";");
@@ -76,10 +104,6 @@ pub const Lexer = struct {
             ',' => {
                 self.readChar();
                 return Token.init(TokenType.COMMA, ",");
-            },
-            '+' => {
-                self.readChar();
-                return Token.init(TokenType.PLUS, "+");
             },
             '{' => {
                 self.readChar();
@@ -156,6 +180,8 @@ test "TestNextToken v2" {
         \\  x + y;
         \\};
         \\let result = add(five, ten);
+        \\!-/*5;
+        \\5 < 10 > 5;
     ;
 
     const tests = [_]struct {
@@ -208,6 +234,22 @@ test "TestNextToken v2" {
         .{ .expected_type = token.TokenType.COMMA, .expected_literal = "," },
         .{ .expected_type = token.TokenType.IDENT, .expected_literal = "ten" },
         .{ .expected_type = token.TokenType.RPAREN, .expected_literal = ")" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+
+        // !-/*5;
+        .{ .expected_type = token.TokenType.BANG, .expected_literal = "!" },
+        .{ .expected_type = token.TokenType.MINUS, .expected_literal = "-" },
+        .{ .expected_type = token.TokenType.SLASH, .expected_literal = "/" },
+        .{ .expected_type = token.TokenType.ASTERISK, .expected_literal = "*" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "5" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+
+        // 5 < 10 > 5;
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "5" },
+        .{ .expected_type = token.TokenType.LT, .expected_literal = "<" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "10" },
+        .{ .expected_type = token.TokenType.GT, .expected_literal = ">" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "5" },
         .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
 
         // EOF
