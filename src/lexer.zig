@@ -182,6 +182,12 @@ test "TestNextToken v2" {
         \\let result = add(five, ten);
         \\!-/*5;
         \\5 < 10 > 5;
+        \\
+        \\if (5 < 10) {
+        \\  return true;
+        \\} else {
+        \\  return false;
+        \\}
     ;
 
     const tests = [_]struct {
@@ -251,6 +257,29 @@ test "TestNextToken v2" {
         .{ .expected_type = token.TokenType.GT, .expected_literal = ">" },
         .{ .expected_type = token.TokenType.INT, .expected_literal = "5" },
         .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+
+        // if (5 < 10) {
+        .{ .expected_type = token.TokenType.IF, .expected_literal = "if" },
+        .{ .expected_type = token.TokenType.LPAREN, .expected_literal = "(" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "5" },
+        .{ .expected_type = token.TokenType.LT, .expected_literal = "<" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "10" },
+        .{ .expected_type = token.TokenType.RPAREN, .expected_literal = ")" },
+        .{ .expected_type = token.TokenType.LBRACE, .expected_literal = "{" },
+        //   return true;
+        .{ .expected_type = token.TokenType.RETURN, .expected_literal = "return" },
+        .{ .expected_type = token.TokenType.TRUE, .expected_literal = "true" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+        // } else {
+        .{ .expected_type = token.TokenType.RBRACE, .expected_literal = "}" },
+        .{ .expected_type = token.TokenType.ELSE, .expected_literal = "else" },
+        .{ .expected_type = token.TokenType.LBRACE, .expected_literal = "{" },
+        //   return false;
+        .{ .expected_type = token.TokenType.RETURN, .expected_literal = "return" },
+        .{ .expected_type = token.TokenType.FALSE, .expected_literal = "false" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+        // }
+        .{ .expected_type = token.TokenType.RBRACE, .expected_literal = "}" },
 
         // EOF
         .{ .expected_type = token.TokenType.EOF, .expected_literal = "" },

@@ -30,6 +30,11 @@ pub const TokenType = enum {
     // キーワード
     FUNCTION,
     LET,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
 
     pub fn toString(self: TokenType) []const u8 {
         return switch (self) {
@@ -53,6 +58,11 @@ pub const TokenType = enum {
             .RBRACE => "}",
             .FUNCTION => "FUNCTION",
             .LET => "LET",
+            .TRUE => "TRUE",
+            .FALSE => "FALSE",
+            .IF => "IF",
+            .ELSE => "ELSE",
+            .RETURN => "RETURN",
         };
     }
 };
@@ -72,6 +82,11 @@ pub const Token = struct {
 const keywords = std.StaticStringMap(TokenType).initComptime(.{
     .{ "fn", TokenType.FUNCTION },
     .{ "let", TokenType.LET },
+    .{ "true", TokenType.TRUE },
+    .{ "false", TokenType.FALSE },
+    .{ "if", TokenType.IF },
+    .{ "else", TokenType.ELSE },
+    .{ "return", TokenType.RETURN },
 });
 
 pub fn lookupIdent(ident: []const u8) TokenType {
@@ -84,6 +99,11 @@ test "Test Lookup Ident" {
 
     try testing.expectEqual(TokenType.FUNCTION, lookupIdent("fn"));
     try testing.expectEqual(TokenType.LET, lookupIdent("let"));
+    try testing.expectEqual(TokenType.TRUE, lookupIdent("true"));
+    try testing.expectEqual(TokenType.FALSE, lookupIdent("false"));
+    try testing.expectEqual(TokenType.IF, lookupIdent("if"));
+    try testing.expectEqual(TokenType.ELSE, lookupIdent("else"));
+    try testing.expectEqual(TokenType.RETURN, lookupIdent("return"));
     try testing.expectEqual(TokenType.IDENT, lookupIdent("foobar"));
     try testing.expectEqual(TokenType.IDENT, lookupIdent("x"));
 }
