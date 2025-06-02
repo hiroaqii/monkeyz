@@ -56,3 +56,22 @@ pub const Token = struct {
         };
     }
 };
+
+const keywords = std.StaticStringMap(TokenType).initComptime(.{
+    .{ "fn", TokenType.FUNCTION },
+    .{ "let", TokenType.LET },
+});
+
+pub fn lookupIdent(ident: []const u8) TokenType {
+    return keywords.get(ident) orelse TokenType.IDENT;
+}
+
+// test
+test "Test Lookup Ident" {
+    const testing = std.testing;
+
+    try testing.expectEqual(TokenType.FUNCTION, lookupIdent("fn"));
+    try testing.expectEqual(TokenType.LET, lookupIdent("let"));
+    try testing.expectEqual(TokenType.IDENT, lookupIdent("foobar"));
+    try testing.expectEqual(TokenType.IDENT, lookupIdent("x"));
+}
