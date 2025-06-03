@@ -18,6 +18,10 @@ pub const TokenType = enum {
     LT,
     GT,
 
+    // 比較演算子
+    EQ,
+    NOT_EQ,
+
     // デリミタ
     COMMA,
     SEMICOLON,
@@ -50,6 +54,8 @@ pub const TokenType = enum {
             .SLASH => "/",
             .LT => "<",
             .GT => ">",
+            .EQ => "==",
+            .NOT_EQ => "!=",
             .COMMA => ",",
             .SEMICOLON => ";",
             .LPAREN => "(",

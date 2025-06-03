@@ -31,6 +31,14 @@ pub const Lexer = struct {
         self.read_position += 1;
     }
 
+    fn peekChar(self: *Lexer) u8 {
+        if (self.read_position >= self.input.len) {
+            return 0;
+        } else {
+            return self.input[self.read_position];
+        }
+    }
+
     fn skipWhitespace(self: *Lexer) void {
         while (self.ch == ' ' or self.ch == '\t' or self.ch == '\n' or self.ch == '\r') {
             self.readChar();
@@ -58,8 +66,14 @@ pub const Lexer = struct {
 
         switch (self.ch) {
             '=' => {
-                self.readChar();
-                return Token.init(TokenType.ASSIGN, "=");
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    self.readChar();
+                    return Token.init(TokenType.EQ, "==");
+                } else {
+                    self.readChar();
+                    return Token.init(TokenType.ASSIGN, "=");
+                }
             },
             '+' => {
                 self.readChar();
@@ -70,8 +84,14 @@ pub const Lexer = struct {
                 return Token.init(TokenType.MINUS, "-");
             },
             '!' => {
-                self.readChar();
-                return Token.init(TokenType.BANG, "!");
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    self.readChar();
+                    return Token.init(TokenType.NOT_EQ, "!=");
+                } else {
+                    self.readChar();
+                    return Token.init(TokenType.BANG, "!");
+                }
             },
             '/' => {
                 self.readChar();
@@ -188,6 +208,10 @@ test "TestNextToken v2" {
         \\} else {
         \\  return false;
         \\}
+        \\
+        \\10 == 10;
+        \\10 != 9;
+        \\
     ;
 
     const tests = [_]struct {
@@ -280,6 +304,17 @@ test "TestNextToken v2" {
         .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
         // }
         .{ .expected_type = token.TokenType.RBRACE, .expected_literal = "}" },
+
+        // 10 == 10;
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "10" },
+        .{ .expected_type = token.TokenType.EQ, .expected_literal = "==" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "10" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
+        // 10 != 9;
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "10" },
+        .{ .expected_type = token.TokenType.NOT_EQ, .expected_literal = "!=" },
+        .{ .expected_type = token.TokenType.INT, .expected_literal = "9" },
+        .{ .expected_type = token.TokenType.SEMICOLON, .expected_literal = ";" },
 
         // EOF
         .{ .expected_type = token.TokenType.EOF, .expected_literal = "" },
