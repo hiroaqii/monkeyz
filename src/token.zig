@@ -71,16 +71,34 @@ pub const TokenType = enum {
             .RETURN => "RETURN",
         };
     }
+
+    pub fn hasFixedLiteral(self: TokenType) bool {
+        return switch (self) {
+            .IDENT, .INT, .EOF => false,
+            else => true,
+        };
+    }
 };
 
 pub const Token = struct {
     type: TokenType,
     literal: []const u8,
 
-    pub fn init(token_type: TokenType, literal: []const u8) Token {
+    pub fn initAlnum(token_type: TokenType, literal: []const u8) Token {
         return Token{
             .type = token_type,
             .literal = literal,
+        };
+    }
+
+    pub fn init(comptime token_type: TokenType) Token {
+        if (!comptime token_type.hasFixedLiteral()) {
+            @compileError("TokenType " ++ @tagName(token_type) ++ " requires explicit literal");
+        }
+
+        return Token{
+            .type = token_type,
+            .literal = token_type.toString(),
         };
     }
 };

@@ -69,85 +69,85 @@ pub const Lexer = struct {
                 if (self.peekChar() == '=') {
                     self.readChar();
                     self.readChar();
-                    return Token.init(TokenType.EQ, "==");
+                    return Token.init(TokenType.EQ);
                 } else {
                     self.readChar();
-                    return Token.init(TokenType.ASSIGN, "=");
+                    return Token.init(TokenType.ASSIGN);
                 }
             },
             '+' => {
                 self.readChar();
-                return Token.init(TokenType.PLUS, "+");
+                return Token.init(TokenType.PLUS);
             },
             '-' => {
                 self.readChar();
-                return Token.init(TokenType.MINUS, "-");
+                return Token.init(TokenType.MINUS);
             },
             '!' => {
                 if (self.peekChar() == '=') {
                     self.readChar();
                     self.readChar();
-                    return Token.init(TokenType.NOT_EQ, "!=");
+                    return Token.init(TokenType.NOT_EQ);
                 } else {
                     self.readChar();
-                    return Token.init(TokenType.BANG, "!");
+                    return Token.init(TokenType.BANG);
                 }
             },
             '/' => {
                 self.readChar();
-                return Token.init(TokenType.SLASH, "/");
+                return Token.init(TokenType.SLASH);
             },
             '*' => {
                 self.readChar();
-                return Token.init(TokenType.ASTERISK, "*");
+                return Token.init(TokenType.ASTERISK);
             },
             '<' => {
                 self.readChar();
-                return Token.init(TokenType.LT, "<");
+                return Token.init(TokenType.LT);
             },
             '>' => {
                 self.readChar();
-                return Token.init(TokenType.GT, ">");
+                return Token.init(TokenType.GT);
             },
             ';' => {
                 self.readChar();
-                return Token.init(TokenType.SEMICOLON, ";");
+                return Token.init(TokenType.SEMICOLON);
             },
             '(' => {
                 self.readChar();
-                return Token.init(TokenType.LPAREN, "(");
+                return Token.init(TokenType.LPAREN);
             },
             ')' => {
                 self.readChar();
-                return Token.init(TokenType.RPAREN, ")");
+                return Token.init(TokenType.RPAREN);
             },
             ',' => {
                 self.readChar();
-                return Token.init(TokenType.COMMA, ",");
+                return Token.init(TokenType.COMMA);
             },
             '{' => {
                 self.readChar();
-                return Token.init(TokenType.LBRACE, "{");
+                return Token.init(TokenType.LBRACE);
             },
             '}' => {
                 self.readChar();
-                return Token.init(TokenType.RBRACE, "}");
+                return Token.init(TokenType.RBRACE);
             },
             0 => {
-                return Token.init(TokenType.EOF, "");
+                return Token.initAlnum(TokenType.EOF, "");
             },
             else => {
                 if (isLetter(self.ch)) {
                     const literal = self.readIdentifier();
                     const token_type = token.lookupIdent(literal);
-                    return Token.init(token_type, literal);
+                    return Token.initAlnum(token_type, literal);
                 } else if (isDigit(self.ch)) {
                     const literal = self.readNumber();
-                    return Token.init(TokenType.INT, literal);
+                    return Token.initAlnum(TokenType.INT, literal);
                 } else {
                     const ch = self.ch;
                     self.readChar();
-                    return Token.init(TokenType.ILLEGAL, &[_]u8{ch});
+                    return Token.initAlnum(TokenType.ILLEGAL, &[_]u8{ch});
                 }
             },
         }
