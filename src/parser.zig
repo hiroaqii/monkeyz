@@ -9,6 +9,7 @@ const TokenType = token.TokenType;
 const Node = ast.Node;
 const Program = ast.Program;
 const LetStatement = ast.LetStatement;
+const ReturnStatement = ast.ReturnStatement;
 const Identifier = ast.Identifier;
 
 pub const Parser = struct {
@@ -67,6 +68,7 @@ pub const Parser = struct {
     fn parseStatement(self: *Parser) ?Node {
         return switch (self.current_token.type) {
             TokenType.LET => self.parseLetStatement(),
+            TokenType.RETURN => self.parseReturnStatement(),
             else => null,
         };
     }
@@ -91,6 +93,20 @@ pub const Parser = struct {
 
         const let_stmt = LetStatement.init(stmt_token, name, null);
         return Node{ .let_statement = let_stmt };
+    }
+
+    fn parseReturnStatement(self: *Parser) ?Node {
+        const stmt_token = self.current_token;
+
+        self.nextToken();
+
+        // TODO: セミコロンに遭遇するまで式を読み飛ばしてる
+        while (!self.currentTokenIs(TokenType.SEMICOLON)) {
+            self.nextToken();
+        }
+
+        const return_stmt = ReturnStatement.init(stmt_token, null);
+        return Node{ .return_statement = return_stmt };
     }
 
     fn currentTokenIs(self: Parser, t: TokenType) bool {
@@ -164,6 +180,48 @@ fn testLetStatement(stmt_node: Node, name: []const u8) !void {
 
             // letStmt.Name.TokenLiteral() != name のチェック
             try testing.expectEqualStrings(name, let_stmt.name.token.literal);
+        },
+        else => {
+            try testing.expect(false); // Should not reach here
+        },
+    }
+}
+
+test "TestReturnStatements" {
+    const allocator = testing.allocator;
+    
+    const input = 
+        \\return 5;
+        \\return 10;
+        \\return 993322;
+    ;
+
+    var l = Lexer.init(input);
+    var parser = Parser.init(allocator, &l);
+    defer parser.deinit();
+
+    var program = try parser.parseProgram();
+    defer program.deinit();
+    
+    try checkParserErrors(&parser);
+    
+    // program.Statements != 3 のチェック
+    try testing.expectEqual(@as(usize, 3), program.statementCount());
+
+    // 各ステートメントがReturnStatementであることを確認
+    for (program.nodes.items) |stmt_node| {
+        try testReturnStatement(stmt_node);
+    }
+}
+
+fn testReturnStatement(stmt_node: Node) !void {
+    // stmt が return_statement であることを確認
+    try testing.expect(stmt_node.isStatement());
+    
+    switch (stmt_node) {
+        .return_statement => |return_stmt| {
+            // returnStmt.TokenLiteral() != "return" のチェック
+            try testing.expectEqualStrings("return", return_stmt.token.literal);
         },
         else => {
             try testing.expect(false); // Should not reach here

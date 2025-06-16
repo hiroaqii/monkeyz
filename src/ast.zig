@@ -6,6 +6,7 @@ const Token = token.Token;
 pub const Node = union(enum) {
     // Statements
     let_statement: LetStatement,
+    return_statement: ReturnStatement,
 
     // Expressions
     identifier: Identifier,
@@ -13,6 +14,7 @@ pub const Node = union(enum) {
     pub fn tokenLiteral(self: Node) []const u8 {
         return switch (self) {
             .let_statement => |stmt| stmt.token.literal,
+            .return_statement => |stmt| stmt.token.literal,
             .identifier => |ident| ident.token.literal,
         };
     }
@@ -21,6 +23,7 @@ pub const Node = union(enum) {
     pub fn isStatement(self: Node) bool {
         return switch (self) {
             .let_statement => true,
+            .return_statement => true,
             .identifier => false,
         };
     }
@@ -28,6 +31,7 @@ pub const Node = union(enum) {
     pub fn isExpression(self: Node) bool {
         return switch (self) {
             .let_statement => false,
+            .return_statement => false,
             .identifier => true,
         };
     }
@@ -88,6 +92,19 @@ pub const LetStatement = struct {
             .token = let_token,
             .name = name,
             .value = value,
+        };
+    }
+};
+
+// ReturnStatement
+pub const ReturnStatement = struct {
+    token: Token, // RETURNトークン
+    return_value: ?*Node, // 戻り値（ポインタで循環依存を回避）
+
+    pub fn init(return_token: Token, return_value: ?*Node) ReturnStatement {
+        return ReturnStatement{
+            .token = return_token,
+            .return_value = return_value,
         };
     }
 };
@@ -164,6 +181,29 @@ test "Program operations" {
     try testing.expectEqualStrings("let", program.tokenLiteral());
     try testing.expectEqual(@as(usize, 1), program.statementCount());
     try testing.expectEqual(@as(usize, 1), program.nodes.items.len);
+}
+
+test "ReturnStatement creation and access" {
+    const return_token = Token.initAlnum(token.TokenType.RETURN, "return");
+    
+    // 戻り値なしのreturn文
+    const return_stmt_empty = ReturnStatement.init(return_token, null);
+    try testing.expectEqualStrings("return", return_stmt_empty.token.literal);
+    try testing.expect(return_stmt_empty.return_value == null);
+    
+    // 戻り値ありのreturn文
+    const ident = Identifier.init(Token.initAlnum(token.TokenType.IDENT, "x"), "x");
+    var value_node = Node{ .identifier = ident };
+    const return_stmt_with_value = ReturnStatement.init(return_token, &value_node);
+    
+    try testing.expectEqualStrings("return", return_stmt_with_value.token.literal);
+    try testing.expect(return_stmt_with_value.return_value != null);
+
+    // Node として使用
+    const node = Node{ .return_statement = return_stmt_with_value };
+    try testing.expectEqualStrings("return", node.tokenLiteral());
+    try testing.expect(node.isStatement());
+    try testing.expect(!node.isExpression());
 }
 
 test "Program type safety" {
