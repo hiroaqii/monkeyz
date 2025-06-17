@@ -7,6 +7,7 @@ pub const Node = union(enum) {
     // Statements
     let_statement: LetStatement,
     return_statement: ReturnStatement,
+    expression_statement: ExpressionStatement,
 
     // Expressions
     identifier: Identifier,
@@ -15,6 +16,7 @@ pub const Node = union(enum) {
         return switch (self) {
             .let_statement => |stmt| stmt.token.literal,
             .return_statement => |stmt| stmt.token.literal,
+            .expression_statement => |stmt| stmt.token.literal,
             .identifier => |ident| ident.token.literal,
         };
     }
@@ -24,6 +26,7 @@ pub const Node = union(enum) {
         return switch (self) {
             .let_statement => true,
             .return_statement => true,
+            .expression_statement => true,
             .identifier => false,
         };
     }
@@ -32,7 +35,17 @@ pub const Node = union(enum) {
         return switch (self) {
             .let_statement => false,
             .return_statement => false,
+            .expression_statement => false,
             .identifier => true,
+        };
+    }
+
+    pub fn toString(self: Node, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        return switch (self) {
+            .let_statement => |stmt| try stmt.toString(allocator),
+            .return_statement => |stmt| try stmt.toString(allocator),
+            .expression_statement => |stmt| try stmt.toString(allocator),
+            .identifier => |ident| try ident.toString(allocator),
         };
     }
 };
@@ -79,6 +92,19 @@ pub const Program = struct {
         }
         return count;
     }
+
+    pub fn toString(self: Program, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        var out = std.ArrayList(u8).init(allocator);
+        defer out.deinit();
+
+        for (self.nodes.items) |node| {
+            const node_str = try node.toString(allocator);
+            defer allocator.free(node_str);
+            try out.appendSlice(node_str);
+        }
+
+        return out.toOwnedSlice();
+    }
 };
 
 // LetStatement
@@ -94,6 +120,30 @@ pub const LetStatement = struct {
             .value = value,
         };
     }
+
+    pub fn toString(self: LetStatement, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        var out = std.ArrayList(u8).init(allocator);
+        defer out.deinit();
+
+        try out.appendSlice(self.token.literal);
+        try out.appendSlice(" ");
+
+        const name_str = try self.name.toString(allocator);
+        defer allocator.free(name_str);
+        try out.appendSlice(name_str);
+
+        try out.appendSlice(" = ");
+
+        if (self.value) |value| {
+            const value_str = try value.toString(allocator);
+            defer allocator.free(value_str);
+            try out.appendSlice(value_str);
+        }
+
+        try out.appendSlice(";");
+
+        return out.toOwnedSlice();
+    }
 };
 
 // ReturnStatement
@@ -107,6 +157,44 @@ pub const ReturnStatement = struct {
             .return_value = return_value,
         };
     }
+
+    pub fn toString(self: ReturnStatement, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        var out = std.ArrayList(u8).init(allocator);
+        defer out.deinit();
+
+        try out.appendSlice(self.token.literal);
+        try out.appendSlice(" ");
+
+        if (self.return_value) |return_value| {
+            const value_str = try return_value.toString(allocator);
+            defer allocator.free(value_str);
+            try out.appendSlice(value_str);
+        }
+
+        try out.appendSlice(";");
+
+        return out.toOwnedSlice();
+    }
+};
+
+// ExpressionStatement
+pub const ExpressionStatement = struct {
+    token: Token, // 式の最初のトークン
+    expression: ?*Node, // 式（ポインタで循環依存を回避）
+
+    pub fn init(first_token: Token, expression: ?*Node) ExpressionStatement {
+        return ExpressionStatement{
+            .token = first_token,
+            .expression = expression,
+        };
+    }
+
+    pub fn toString(self: ExpressionStatement, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        if (self.expression) |expression| {
+            return try expression.toString(allocator);
+        }
+        return try allocator.dupe(u8, "");
+    }
 };
 
 // Identifier
@@ -119,6 +207,10 @@ pub const Identifier = struct {
             .token = ident_token,
             .value = value,
         };
+    }
+
+    pub fn toString(self: Identifier, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        return try allocator.dupe(u8, self.value);
     }
 };
 
@@ -185,23 +277,46 @@ test "Program operations" {
 
 test "ReturnStatement creation and access" {
     const return_token = Token.initAlnum(token.TokenType.RETURN, "return");
-    
+
     // 戻り値なしのreturn文
     const return_stmt_empty = ReturnStatement.init(return_token, null);
     try testing.expectEqualStrings("return", return_stmt_empty.token.literal);
     try testing.expect(return_stmt_empty.return_value == null);
-    
+
     // 戻り値ありのreturn文
     const ident = Identifier.init(Token.initAlnum(token.TokenType.IDENT, "x"), "x");
     var value_node = Node{ .identifier = ident };
     const return_stmt_with_value = ReturnStatement.init(return_token, &value_node);
-    
+
     try testing.expectEqualStrings("return", return_stmt_with_value.token.literal);
     try testing.expect(return_stmt_with_value.return_value != null);
 
     // Node として使用
     const node = Node{ .return_statement = return_stmt_with_value };
     try testing.expectEqualStrings("return", node.tokenLiteral());
+    try testing.expect(node.isStatement());
+    try testing.expect(!node.isExpression());
+}
+
+test "ExpressionStatement creation and access" {
+    const first_token = Token.initAlnum(token.TokenType.IDENT, "x");
+
+    // 式なしのExpression文
+    const expr_stmt_empty = ExpressionStatement.init(first_token, null);
+    try testing.expectEqualStrings("x", expr_stmt_empty.token.literal);
+    try testing.expect(expr_stmt_empty.expression == null);
+
+    // 式ありのExpression文
+    const ident = Identifier.init(Token.initAlnum(token.TokenType.IDENT, "x"), "x");
+    var expr_node = Node{ .identifier = ident };
+    const expr_stmt_with_expr = ExpressionStatement.init(first_token, &expr_node);
+
+    try testing.expectEqualStrings("x", expr_stmt_with_expr.token.literal);
+    try testing.expect(expr_stmt_with_expr.expression != null);
+
+    // Node として使用
+    const node = Node{ .expression_statement = expr_stmt_with_expr };
+    try testing.expectEqualStrings("x", node.tokenLiteral());
     try testing.expect(node.isStatement());
     try testing.expect(!node.isExpression());
 }
@@ -219,4 +334,24 @@ test "Program type safety" {
     // これはエラーになるべき
     const result = program.addStatement(expr_node);
     try testing.expectError(error.NotAStatement, result);
+}
+
+test "TestString" {
+    const allocator = testing.allocator;
+
+    var program = Program.init(allocator);
+    defer program.deinit();
+
+    const name = Identifier.init(Token.initAlnum(token.TokenType.IDENT, "myVar"), "myVar");
+    const value = Identifier.init(Token.initAlnum(token.TokenType.IDENT, "anotherVar"), "anotherVar");
+
+    var value_node = Node{ .identifier = value };
+    const let_stmt = LetStatement.init(Token.initAlnum(token.TokenType.LET, "let"), name, &value_node);
+    const let_stmt_node = Node{ .let_statement = let_stmt };
+
+    try program.addStatement(let_stmt_node);
+
+    const program_str = try program.toString(allocator);
+    defer allocator.free(program_str);
+    try testing.expectEqualStrings("let myVar = anotherVar;", program_str);
 }
