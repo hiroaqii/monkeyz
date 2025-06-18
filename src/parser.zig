@@ -12,12 +12,18 @@ const LetStatement = ast.LetStatement;
 const ReturnStatement = ast.ReturnStatement;
 const Identifier = ast.Identifier;
 
+const PrefixParseFn = *const fn (*Parser) ?Node;
+const InfixParseFn = *const fn (*Parser, Node) ?Node;
+
 pub const Parser = struct {
     l: *Lexer,
     current_token: Token,
     peek_token: Token,
     errors: std.ArrayList([]const u8),
     allocator: std.mem.Allocator,
+
+    prefix_parse_fns: std.HashMap(TokenType, PrefixParseFn, std.hash_map.AutoContext(TokenType), std.hash_map.default_max_load_percentage),
+    infix_parse_fns: std.HashMap(TokenType, InfixParseFn, std.hash_map.AutoContext(TokenType), std.hash_map.default_max_load_percentage),
 
     pub fn init(allocator: std.mem.Allocator, l: *Lexer) Parser {
         var p = Parser{
@@ -26,6 +32,8 @@ pub const Parser = struct {
             .peek_token = undefined,
             .errors = std.ArrayList([]const u8).init(allocator),
             .allocator = allocator,
+            .prefix_parse_fns = std.HashMap(TokenType, PrefixParseFn, std.hash_map.AutoContext(TokenType), std.hash_map.default_max_load_percentage).init(allocator),
+            .infix_parse_fns = std.HashMap(TokenType, InfixParseFn, std.hash_map.AutoContext(TokenType), std.hash_map.default_max_load_percentage).init(allocator),
         };
 
         // 2 つトークンを読み込む。curToken と peekToken の両方がセットされる。
@@ -41,6 +49,10 @@ pub const Parser = struct {
             self.allocator.free(error_msg);
         }
         self.errors.deinit();
+
+        // 関数マップを解放
+        self.prefix_parse_fns.deinit();
+        self.infix_parse_fns.deinit();
     }
 
     pub fn parseProgram(self: *Parser) !Program {
@@ -132,6 +144,14 @@ pub const Parser = struct {
 
         self.errors.append(msg) catch return; // エラーハンドリング簡略化
     }
+
+    fn registerPrefix(self: *Parser, token_type: TokenType, parse_fn: PrefixParseFn) !void {
+        try self.prefix_parse_fns.put(token_type, parse_fn);
+    }
+
+    fn registerInfix(self: *Parser, token_type: TokenType, parse_fn: InfixParseFn) !void {
+        try self.infix_parse_fns.put(token_type, parse_fn);
+    }
 };
 
 // Tests
@@ -189,8 +209,8 @@ fn testLetStatement(stmt_node: Node, name: []const u8) !void {
 
 test "TestReturnStatements" {
     const allocator = testing.allocator;
-    
-    const input = 
+
+    const input =
         \\return 5;
         \\return 10;
         \\return 993322;
@@ -202,9 +222,9 @@ test "TestReturnStatements" {
 
     var program = try parser.parseProgram();
     defer program.deinit();
-    
+
     try checkParserErrors(&parser);
-    
+
     // program.Statements != 3 のチェック
     try testing.expectEqual(@as(usize, 3), program.statementCount());
 
@@ -217,7 +237,7 @@ test "TestReturnStatements" {
 fn testReturnStatement(stmt_node: Node) !void {
     // stmt が return_statement であることを確認
     try testing.expect(stmt_node.isStatement());
-    
+
     switch (stmt_node) {
         .return_statement => |return_stmt| {
             // returnStmt.TokenLiteral() != "return" のチェック
