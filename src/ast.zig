@@ -53,15 +53,30 @@ pub const Node = union(enum) {
 // Program - ASTのルートノード
 pub const Program = struct {
     nodes: std.ArrayList(Node),
+    allocator: std.mem.Allocator,
+    // 動的に割り当てられたNodeを追跡するリスト
+    allocated_nodes: std.ArrayList(*Node),
 
     pub fn init(allocator: std.mem.Allocator) Program {
         return Program{
             .nodes = std.ArrayList(Node).init(allocator),
+            .allocator = allocator,
+            .allocated_nodes = std.ArrayList(*Node).init(allocator),
         };
     }
 
     pub fn deinit(self: *Program) void {
+        // 動的に割り当てられたノードを解放
+        for (self.allocated_nodes.items) |node| {
+            self.allocator.destroy(node);
+        }
+        self.allocated_nodes.deinit();
         self.nodes.deinit();
+    }
+
+    // 動的に割り当てられたNodeを追跡
+    pub fn trackAllocatedNode(self: *Program, node: *Node) !void {
+        try self.allocated_nodes.append(node);
     }
 
     pub fn tokenLiteral(self: Program) []const u8 {

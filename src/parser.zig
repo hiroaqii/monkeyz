@@ -10,10 +10,22 @@ const Node = ast.Node;
 const Program = ast.Program;
 const LetStatement = ast.LetStatement;
 const ReturnStatement = ast.ReturnStatement;
+const ExpressionStatement = ast.ExpressionStatement;
 const Identifier = ast.Identifier;
 
 const PrefixParseFn = *const fn (*Parser) ?Node;
 const InfixParseFn = *const fn (*Parser, Node) ?Node;
+
+// 演算子優先順位の定義
+const Precedence = enum(u8) {
+    LOWEST = 1, // 最低優先順位
+    EQUALS = 2, // == !=
+    LESSGREATER = 3, // > <
+    SUM = 4, // +
+    PRODUCT = 5, // *
+    PREFIX = 6, // -X !X
+    CALL = 7, // myFunction(X)
+};
 
 pub const Parser = struct {
     l: *Lexer,
@@ -40,6 +52,9 @@ pub const Parser = struct {
         p.nextToken();
         p.nextToken();
 
+        // 前置解析関数を登録
+        p.registerPrefix(TokenType.IDENT, parseIdentifier) catch {};
+
         return p;
     }
 
@@ -61,6 +76,16 @@ pub const Parser = struct {
         while (self.current_token.type != TokenType.EOF) {
             if (self.parseStatement()) |stmt_node| {
                 try program.addStatement(stmt_node);
+
+                // 動的に割り当てられたノードを追跡
+                switch (stmt_node) {
+                    .expression_statement => |expr_stmt| {
+                        if (expr_stmt.expression) |expr| {
+                            try program.trackAllocatedNode(expr);
+                        }
+                    },
+                    else => {},
+                }
             }
             self.nextToken();
         }
@@ -81,8 +106,27 @@ pub const Parser = struct {
         return switch (self.current_token.type) {
             TokenType.LET => self.parseLetStatement(),
             TokenType.RETURN => self.parseReturnStatement(),
-            else => null,
+            else => self.parseExpressionStatement(),
         };
+    }
+
+    fn parseExpressionStatement(self: *Parser) ?Node {
+        const stmt_token = self.current_token;
+
+        const expression = self.parseExpression(Precedence.LOWEST);
+
+        // メモリ管理のため、アロケータを使って動的にNodeを作成
+        const expr_node = self.allocator.create(Node) catch return null;
+        expr_node.* = expression.?;
+
+        const expr_stmt = ExpressionStatement.init(stmt_token, expr_node);
+
+        // セミコロンまで進む
+        if (self.peekTokenIs(TokenType.SEMICOLON)) {
+            self.nextToken();
+        }
+
+        return Node{ .expression_statement = expr_stmt };
     }
 
     fn parseLetStatement(self: *Parser) ?Node {
@@ -151,6 +195,25 @@ pub const Parser = struct {
 
     fn registerInfix(self: *Parser, token_type: TokenType, parse_fn: InfixParseFn) !void {
         try self.infix_parse_fns.put(token_type, parse_fn);
+    }
+
+    // 式を解析するメソッド
+    fn parseExpression(self: *Parser, precedence: Precedence) ?Node {
+        _ = precedence; // 最初のバージョンでは使用しない
+
+        const prefix_fn = self.prefix_parse_fns.get(self.current_token.type);
+        if (prefix_fn == null) {
+            return null;
+        }
+
+        const left_exp = prefix_fn.?(self);
+        return left_exp;
+    }
+
+    // 識別子解析関数
+    fn parseIdentifier(self: *Parser) ?Node {
+        const ident = Identifier.init(self.current_token, self.current_token.literal);
+        return Node{ .identifier = ident };
     }
 };
 
@@ -262,4 +325,53 @@ fn checkParserErrors(parser: *Parser) !void {
 
     // テストを失敗させる
     try testing.expect(false);
+}
+
+test "TestIdentifierExpression" {
+    const allocator = testing.allocator;
+
+    const input = "foobar;";
+
+    var l = Lexer.init(input);
+    var parser = Parser.init(allocator, &l);
+    defer parser.deinit();
+
+    var program = try parser.parseProgram();
+    defer program.deinit();
+
+    try checkParserErrors(&parser);
+
+    // program has not enough statements のチェック
+    try testing.expectEqual(@as(usize, 1), program.nodes.items.len);
+
+    const stmt_node = program.nodes.items[0];
+
+    // program.Statements[0] is not ast.ExpressionStatement のチェック
+    try testing.expect(stmt_node.isStatement());
+
+    switch (stmt_node) {
+        .expression_statement => |expr_stmt| {
+            // stmt.Expression が存在することを確認
+            try testing.expect(expr_stmt.expression != null);
+
+            const expression = expr_stmt.expression.?;
+
+            // exp not *ast.Identifier のチェック
+            switch (expression.*) {
+                .identifier => |ident| {
+                    // ident.Value not "foobar" のチェック
+                    try testing.expectEqualStrings("foobar", ident.value);
+
+                    // ident.TokenLiteral not "foobar" のチェック
+                    try testing.expectEqualStrings("foobar", ident.token.literal);
+                },
+                else => {
+                    try testing.expect(false); // exp not *ast.Identifier
+                },
+            }
+        },
+        else => {
+            try testing.expect(false); // program.Statements[0] is not ast.ExpressionStatement
+        },
+    }
 }
