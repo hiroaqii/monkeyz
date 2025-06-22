@@ -12,6 +12,7 @@ const LetStatement = ast.LetStatement;
 const ReturnStatement = ast.ReturnStatement;
 const ExpressionStatement = ast.ExpressionStatement;
 const Identifier = ast.Identifier;
+const IntegerLiteral = ast.IntegerLiteral;
 
 const PrefixParseFn = *const fn (*Parser) ?Node;
 const InfixParseFn = *const fn (*Parser, Node) ?Node;
@@ -54,6 +55,7 @@ pub const Parser = struct {
 
         // 前置解析関数を登録
         p.registerPrefix(TokenType.IDENT, parseIdentifier) catch {};
+        p.registerPrefix(TokenType.INT, parseIntegerLiteral) catch {};
 
         return p;
     }
@@ -215,6 +217,18 @@ pub const Parser = struct {
         const ident = Identifier.init(self.current_token, self.current_token.literal);
         return Node{ .identifier = ident };
     }
+
+    // 整数リテラル解析関数
+    fn parseIntegerLiteral(self: *Parser) ?Node {
+        const value = std.fmt.parseInt(i64, self.current_token.literal, 10) catch {
+            const msg = std.fmt.allocPrint(self.allocator, "could not parse {s} as integer", .{self.current_token.literal}) catch return null;
+            self.errors.append(msg) catch return null;
+            return null;
+        };
+
+        const int_lit = IntegerLiteral.init(self.current_token, value);
+        return Node{ .integer_literal = int_lit };
+    }
 };
 
 // Tests
@@ -367,6 +381,55 @@ test "TestIdentifierExpression" {
                 },
                 else => {
                     try testing.expect(false); // exp not *ast.Identifier
+                },
+            }
+        },
+        else => {
+            try testing.expect(false); // program.Statements[0] is not ast.ExpressionStatement
+        },
+    }
+}
+
+test "TestIntegerLiteralExpression" {
+    const allocator = testing.allocator;
+
+    const input = "5;";
+
+    var l = Lexer.init(input);
+    var parser = Parser.init(allocator, &l);
+    defer parser.deinit();
+
+    var program = try parser.parseProgram();
+    defer program.deinit();
+
+    try checkParserErrors(&parser);
+
+    // program has not enough statements のチェック
+    try testing.expectEqual(@as(usize, 1), program.nodes.items.len);
+
+    const stmt_node = program.nodes.items[0];
+
+    // program.Statements[0] is not ast.ExpressionStatement のチェック
+    try testing.expect(stmt_node.isStatement());
+
+    switch (stmt_node) {
+        .expression_statement => |expr_stmt| {
+            // stmt.Expression が存在することを確認
+            try testing.expect(expr_stmt.expression != null);
+
+            const expression = expr_stmt.expression.?;
+
+            // exp not *ast.IntegerLiteral のチェック
+            switch (expression.*) {
+                .integer_literal => |int_lit| {
+                    // literal.Value not 5 のチェック
+                    try testing.expectEqual(@as(i64, 5), int_lit.value);
+
+                    // literal.TokenLiteral not "5" のチェック
+                    try testing.expectEqualStrings("5", int_lit.token.literal);
+                },
+                else => {
+                    try testing.expect(false); // exp not *ast.IntegerLiteral
                 },
             }
         },

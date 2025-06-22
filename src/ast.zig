@@ -11,6 +11,7 @@ pub const Node = union(enum) {
 
     // Expressions
     identifier: Identifier,
+    integer_literal: IntegerLiteral,
 
     pub fn tokenLiteral(self: Node) []const u8 {
         return switch (self) {
@@ -18,6 +19,7 @@ pub const Node = union(enum) {
             .return_statement => |stmt| stmt.token.literal,
             .expression_statement => |stmt| stmt.token.literal,
             .identifier => |ident| ident.token.literal,
+            .integer_literal => |int_lit| int_lit.token.literal,
         };
     }
 
@@ -28,6 +30,7 @@ pub const Node = union(enum) {
             .return_statement => true,
             .expression_statement => true,
             .identifier => false,
+            .integer_literal => false,
         };
     }
 
@@ -37,6 +40,7 @@ pub const Node = union(enum) {
             .return_statement => false,
             .expression_statement => false,
             .identifier => true,
+            .integer_literal => true,
         };
     }
 
@@ -46,6 +50,7 @@ pub const Node = union(enum) {
             .return_statement => |stmt| try stmt.toString(allocator),
             .expression_statement => |stmt| try stmt.toString(allocator),
             .identifier => |ident| try ident.toString(allocator),
+            .integer_literal => |int_lit| try int_lit.toString(allocator),
         };
     }
 };
@@ -226,6 +231,23 @@ pub const Identifier = struct {
 
     pub fn toString(self: Identifier, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
         return try allocator.dupe(u8, self.value);
+    }
+};
+
+// IntegerLiteral
+pub const IntegerLiteral = struct {
+    token: Token, // INTトークン
+    value: i64, // 整数値
+
+    pub fn init(int_token: Token, value: i64) IntegerLiteral {
+        return IntegerLiteral{
+            .token = int_token,
+            .value = value,
+        };
+    }
+
+    pub fn toString(self: IntegerLiteral, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        return try std.fmt.allocPrint(allocator, "{d}", .{self.value});
     }
 };
 
