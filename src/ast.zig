@@ -12,6 +12,7 @@ pub const Node = union(enum) {
     // Expressions
     identifier: Identifier,
     integer_literal: IntegerLiteral,
+    prefix_expression: PrefixExpression,
 
     pub fn tokenLiteral(self: Node) []const u8 {
         return switch (self) {
@@ -20,6 +21,7 @@ pub const Node = union(enum) {
             .expression_statement => |stmt| stmt.token.literal,
             .identifier => |ident| ident.token.literal,
             .integer_literal => |int_lit| int_lit.token.literal,
+            .prefix_expression => |prefix_expr| prefix_expr.token.literal,
         };
     }
 
@@ -31,6 +33,7 @@ pub const Node = union(enum) {
             .expression_statement => true,
             .identifier => false,
             .integer_literal => false,
+            .prefix_expression => false,
         };
     }
 
@@ -41,6 +44,7 @@ pub const Node = union(enum) {
             .expression_statement => false,
             .identifier => true,
             .integer_literal => true,
+            .prefix_expression => true,
         };
     }
 
@@ -51,6 +55,7 @@ pub const Node = union(enum) {
             .expression_statement => |stmt| try stmt.toString(allocator),
             .identifier => |ident| try ident.toString(allocator),
             .integer_literal => |int_lit| try int_lit.toString(allocator),
+            .prefix_expression => |prefix_expr| try prefix_expr.toString(allocator),
         };
     }
 };
@@ -248,6 +253,37 @@ pub const IntegerLiteral = struct {
 
     pub fn toString(self: IntegerLiteral, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
         return try std.fmt.allocPrint(allocator, "{d}", .{self.value});
+    }
+};
+
+// PrefixExpression
+pub const PrefixExpression = struct {
+    token: Token, // 前置トークン（例：!、-）
+    operator: []const u8, // 演算子
+    right: *Node, // 右側の式
+
+    pub fn init(prefix_token: Token, operator: []const u8, right: *Node) PrefixExpression {
+        return PrefixExpression{
+            .token = prefix_token,
+            .operator = operator,
+            .right = right,
+        };
+    }
+
+    pub fn toString(self: PrefixExpression, allocator: std.mem.Allocator) std.mem.Allocator.Error![]const u8 {
+        var out = std.ArrayList(u8).init(allocator);
+        defer out.deinit();
+
+        try out.appendSlice("(");
+        try out.appendSlice(self.operator);
+
+        const right_str = try self.right.toString(allocator);
+        defer allocator.free(right_str);
+        try out.appendSlice(right_str);
+
+        try out.appendSlice(")");
+
+        return out.toOwnedSlice();
     }
 };
 

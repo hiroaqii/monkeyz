@@ -13,6 +13,7 @@ const ReturnStatement = ast.ReturnStatement;
 const ExpressionStatement = ast.ExpressionStatement;
 const Identifier = ast.Identifier;
 const IntegerLiteral = ast.IntegerLiteral;
+const PrefixExpression = ast.PrefixExpression;
 
 const PrefixParseFn = *const fn (*Parser) ?Node;
 const InfixParseFn = *const fn (*Parser, Node) ?Node;
@@ -56,6 +57,8 @@ pub const Parser = struct {
         // 前置解析関数を登録
         p.registerPrefix(TokenType.IDENT, parseIdentifier) catch {};
         p.registerPrefix(TokenType.INT, parseIntegerLiteral) catch {};
+        p.registerPrefix(TokenType.BANG, parsePrefixExpression) catch {};
+        p.registerPrefix(TokenType.MINUS, parsePrefixExpression) catch {};
 
         return p;
     }
@@ -84,6 +87,14 @@ pub const Parser = struct {
                     .expression_statement => |expr_stmt| {
                         if (expr_stmt.expression) |expr| {
                             try program.trackAllocatedNode(expr);
+                            
+                            // PrefixExpressionの右側ノードも追跡
+                            switch (expr.*) {
+                                .prefix_expression => |prefix_expr| {
+                                    try program.trackAllocatedNode(prefix_expr.right);
+                                },
+                                else => {},
+                            }
                         }
                     },
                     else => {},
@@ -228,6 +239,26 @@ pub const Parser = struct {
 
         const int_lit = IntegerLiteral.init(self.current_token, value);
         return Node{ .integer_literal = int_lit };
+    }
+
+    // 前置式解析関数
+    fn parsePrefixExpression(self: *Parser) ?Node {
+        const prefix_token = self.current_token;
+        const operator = self.current_token.literal;
+
+        self.nextToken();
+
+        const right_expr = self.parseExpression(Precedence.PREFIX);
+        if (right_expr == null) {
+            return null;
+        }
+
+        // 動的に右側のノードを作成
+        const right_node = self.allocator.create(Node) catch return null;
+        right_node.* = right_expr.?;
+
+        const prefix_expr = PrefixExpression.init(prefix_token, operator, right_node);
+        return Node{ .prefix_expression = prefix_expr };
     }
 };
 
@@ -436,5 +467,83 @@ test "TestIntegerLiteralExpression" {
         else => {
             try testing.expect(false); // program.Statements[0] is not ast.ExpressionStatement
         },
+    }
+}
+
+// テストヘルパー関数
+fn testIntegerLiteral(node: Node, value: i64) !void {
+    switch (node) {
+        .integer_literal => |int_lit| {
+            try testing.expectEqual(value, int_lit.value);
+            
+            // トークンリテラルのテスト
+            const expected_literal = std.fmt.allocPrint(testing.allocator, "{d}", .{value}) catch unreachable;
+            defer testing.allocator.free(expected_literal);
+            try testing.expectEqualStrings(expected_literal, int_lit.token.literal);
+        },
+        else => {
+            std.debug.print("node is not IntegerLiteral. got={}\n", .{node});
+            try testing.expect(false);
+        },
+    }
+}
+
+test "TestParsingPrefixExpressions" {
+    const allocator = testing.allocator;
+
+    const PrefixTest = struct {
+        input: []const u8,
+        operator: []const u8,
+        integer_value: i64,
+    };
+
+    const prefix_tests = [_]PrefixTest{
+        .{ .input = "!5;", .operator = "!", .integer_value = 5 },
+        .{ .input = "-15;", .operator = "-", .integer_value = 15 },
+    };
+
+    for (prefix_tests) |tt| {
+        var l = Lexer.init(tt.input);
+        var p = Parser.init(allocator, &l);
+        defer p.deinit();
+
+        var program = try p.parseProgram();
+        defer program.deinit();
+
+        try checkParserErrors(&p);
+
+        // プログラムが1つの文を含むことを確認
+        try testing.expectEqual(@as(usize, 1), program.statementCount());
+
+        const stmt_node = program.nodes.items[0];
+        
+        // ExpressionStatementであることを確認
+        switch (stmt_node) {
+            .expression_statement => |expr_stmt| {
+                // 式が存在することを確認
+                try testing.expect(expr_stmt.expression != null);
+                
+                const exp = expr_stmt.expression.?.*;
+                
+                // PrefixExpressionであることを確認
+                switch (exp) {
+                    .prefix_expression => |prefix_expr| {
+                        // 演算子をテスト
+                        try testing.expectEqualStrings(tt.operator, prefix_expr.operator);
+                        
+                        // 右側の値をテスト
+                        try testIntegerLiteral(prefix_expr.right.*, tt.integer_value);
+                    },
+                    else => {
+                        std.debug.print("stmt.expression is not PrefixExpression. got={}\n", .{exp});
+                        try testing.expect(false);
+                    },
+                }
+            },
+            else => {
+                std.debug.print("program.statements[0] is not ExpressionStatement. got={}\n", .{stmt_node});
+                try testing.expect(false);
+            },
+        }
     }
 }
